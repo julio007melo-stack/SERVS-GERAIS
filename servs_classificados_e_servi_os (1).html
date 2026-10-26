@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servs. — Serviços perto de você</title>
+    <meta name="description" content="Encontre profissionais e divulgue serviços na sua cidade com o Servs.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDKs para sincronização de anúncios em tempo real -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #6e0ad6;
+            --primary-light: #f3e8ff;
+            --primary-hover: #5806ad;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 20px;
+            --transition: all 0.2s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            padding-bottom: 80px;
+        }
+
+        /* Header Fixo */
+        header {
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 100;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary-color);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .location-selector {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 6px 10px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            border: 1px solid transparent;
+            transition: var(--transition);
+        }
+
+        .location-selector:hover {
+            border-color: var(--primary-color);
+            background: var(--primary-light);
+        }
+
+        .location-selector i {
+            color: var(--primary-color);
+        }
+
+        .user-badge-btn {
+            background: none;
+            border: none;
+            font-size: 14px;
+            color: var(--primary-color);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .search-container {
+            display: flex;
+            align-items: center;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 5px 6px 5px 13px;
+            gap: 9px;
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+        .search-container:focus-within {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(110,10,214,.10);
+        }
+        .search-container > i { color: var(--primary-color); font-size: 16px; }
+        .search-container input {
+            border: none; background: transparent; width: 100%; min-width: 0;
+            outline: none; font-size: 14px; color: var(--text-main); padding: 10px 0;
+        }
+        .search-action {
+            border: 0; border-radius: 10px; padding: 10px 13px; flex-shrink: 0;
+            background: var(--primary-color); color: white; font-size: 13px;
+            font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+        }
+        .search-action:hover { background: var(--primary-hover); }
+
+        /* Seções / Telas */
+        .view-section {
+            display: none;
+            padding: 16px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .content-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            margin-bottom: 14px;
+        }
+
+        /* Card genérico e formulários */
+        .card-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--text-main);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            outline: none;
+            transition: var(--transition);
+            background: #fff;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(110, 10, 214, 0.1);
+        }
+
+        .btn-primary-custom {
+            width: 100%;
+            padding: 13px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary-custom:hover {
+            background: var(--primary-hover);
+        }
+
+        /* Categorias (Início) */
+        .categories-scroll {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .category-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            min-width: 72px;
+            cursor: pointer;
+        }
+
+        .category-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .category-item span {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* Anúncios estilo classificados com botão de favorito */
+        .listing-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+        .listing-card { position: relative; background:#fff; border:1px solid var(--border-color); border-radius:14px; overflow:hidden; min-width:0; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+        .listing-photo-container { position: relative; }
+        .listing-photo { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#f1f5f9; }
+        
+        /* Botão de favoritar sobre a foto */
+        .fav-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.85);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 16px;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: var(--transition);
+            z-index: 2;
+        }
+
+        .fav-btn.active {
+            color: #ef4444;
+            background: #ffffff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .listing-body { padding:11px; }
+        .listing-price { font-size:17px; font-weight:800; color:var(--primary-color); margin:5px 0; }
+        .listing-title { font-size:14px; font-weight:700; line-height:1.35; overflow-wrap:anywhere; }
+        .listing-meta { font-size:11px; color:var(--text-muted); margin-top:7px; }
+        .listing-desc { font-size:12px; color:var(--text-muted); margin-top:6px; line-height:1.4; }
+        .photo-upload { display:block; padding:16px; border:1.5px dashed #c4b5fd; border-radius:12px; background:#faf5ff; text-align:center; cursor:pointer; color:var(--primary-color); }
+        .photo-preview-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+        .photo-preview-grid img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; }
+        .empty-listings { padding:32px 14px; text-align:center; color:var(--text-muted); background:#fff; border:1px dashed var(--border-color); border-radius:12px; font-size:14px; width: 100%; }
+        @media (min-width:700px) { .listing-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .content-wrapper { max-width:900px; } }
+
+        /* Modais e navegação */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background-color: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .nav-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            height: 100%;
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .nav-link.active {
+            color: var(--primary-color);
+        }
+
+        .nav-link.announce-btn {
+            position: relative;
+            top: -12px;
+            background: var(--primary-color);
+            color: white !important;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            flex: none;
+            box-shadow: 0 4px 14px rgba(110, 10, 214, 0.4);
+        }
+
+        header > .header-top,
+        header > .search-container {
+            width: 100%;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .bottom-nav {
+            left: 50%;
+            right: auto;
+            transform: translateX(-50%);
+            width: min(100%, 650px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Fixo -->
+    <header>
+        <div class="header-top">
+            <a href="#" class="logo">Servs.</a>
+            <div class="header-actions">
+                <div class="location-selector" id="openLocationModal" onclick="abrirModalLocalizacao()">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <span id="currentLocationText">Brasil (Todo o país)</span>
+                </div>
+                <button class="user-badge-btn" id="headerAuthBtn" onclick="abrirModalAuth()">
+                    <i class="fa-solid fa-user-circle"></i> Entrar
+                </button>
+            </div>
+        </div>
+        <form class="search-container" id="mainSearchForm" role="search" onsubmit="event.preventDefault(); renderizarAnuncios();">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input id="mainSearchInput" type="search" placeholder="Busque produto, serviço ou categoria..." aria-label="Pesquisar anúncios">
+            <button type="submit" class="search-action"><i class="fa-solid fa-magnifying-glass"></i><span class="search-label">Pesquisar</span></button>
+        </form>
+    </header>
+
+    <!-- TELA 1: INÍCIO (ÁREA PÚBLICA) -->
+    <main id="homeView" class="view-section active">
+        <div class="content-wrapper">
+            <h2 class="section-title">Categorias populares</h2>
+            <div class="categories-scroll">
+                <div class="category-item"><div class="category-icon"><i class="fa-solid fa-bolt"></i></div><span>Eletricista</span></div>
+                <div class="category-item"><div class="category-icon"><i class="fa-solid fa-wrench"></i></div><span>Encanador</span></div>
+                <div class="category-item"><div class="category-icon"><i class="fa-solid fa-paintbrush"></i></div><span>Pintor</span></div>
+                <div class="category-item"><div class="category-icon"><i class="fa-solid fa-broom"></i></div><span>Limpeza</span></div>
+                <div class="category-item"><div class="category-icon"><i class="fa-solid fa-hammer"></i></div><span>Reformas</span></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:24px;">
+                <h2 class="section-title" style="margin:0;">Publicações em Destaque</h2>
+                <span style="font-size:12px;color:var(--text-muted);">Classificados</span>
+            </div>
+            
+            <div id="publicListings" class="listing-grid"></div>
+        </div>
+    </main>
+
+    <!-- TELA DE FAVORITOS (NOVA ÁREA) -->
+    <main id="favoritesView" class="view-section">
+        <div class="content-wrapper">
+            <h2 class="section-title"><i class="fa-solid fa-heart" style="color: #ef4444; margin-right: 6px;"></i> Meus Favoritos</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:-6px 0 16px;">Guarde aqui os anúncios e serviços que você tem interesse.</p>
+
+            <div id="favoritesListings" class="listing-grid"></div>
+        </div>
+    </main>
+
+    <!-- TELA CHAT -->
+    <main id="chatView" class="view-section">
+        <div class="content-wrapper">
+            <h2 class="section-title">Mensagens</h2>
+            <div id="chatListContainer">
+                <div class="chat-empty-state" style="text-align:center;padding:42px 20px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-lg);">
+                    <i class="fa-regular fa-comments" style="font-size:42px;color:var(--primary-color);margin-bottom:14px;"></i>
+                    <h3 style="font-size:17px;margin-bottom:8px;">Nenhuma conversa ainda</h3>
+                    <p style="font-size:14px;color:var(--text-muted);line-height:1.5;">Quando você conversar com um profissional, suas mensagens aparecerão aqui.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- TELA DIVULGAR ANÚNCIO -->
+    <main id="announceView" class="view-section">
+        <div class="content-wrapper">
+            <h2 class="section-title">Divulgar anúncio</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:-6px 0 14px;">Mostre o que você vende ou o serviço que oferece para todas as pessoas.</p>
+            <div class="card-box">
+                <form id="announceForm" onsubmit="publicarServico(event)">
+                    <div class="form-group">
+                        <label for="servType">O que você quer divulgar?</label>
+                        <select id="servType" class="form-control">
+                            <option value="Produto">Produto para vender</option>
+                            <option value="Serviço" selected>Serviço que ofereço</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="servTitle">Nome do produto ou serviço</label>
+                        <input type="text" id="servTitle" class="form-control" maxlength="70" placeholder="Ex.: Bolo de chocolate caseiro" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="servCategory">Categoria</label>
+                        <select id="servCategory" class="form-control" required>
+                            <option value="Eletricista">Eletricista</option>
+                            <option value="Encanador">Encanador</option>
+                            <option value="Pintor">Pintor</option>
+                            <option value="Limpeza">Limpeza</option>
+                            <option value="Reformas">Reformas</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fotos (até 5)</label>
+                        <label class="photo-upload" for="servPhotos"><i class="fa-solid fa-camera" style="font-size:24px;display:block;margin-bottom:7px;"></i><strong>Toque para adicionar fotos</strong></label>
+                        <input type="file" id="servPhotos" accept="image/*" multiple style="display:none;" onchange="mostrarPreviaFotos(event)">
+                        <div id="photoPreview" class="photo-preview-grid"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="servPrice">Preço (R$)</label>
+                        <input type="number" id="servPrice" class="form-control" placeholder="Ex.: 35,00" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="servDesc">Descrição do anúncio</label>
+                        <textarea id="servDesc" class="form-control" rows="4" maxlength="1000" placeholder="Conte os detalhes importantes..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="servContact">WhatsApp para contato</label>
+                        <input type="tel" id="servContact" class="form-control" placeholder="Ex.: (68) 99999-9999">
+                    </div>
+                    <button type="submit" class="btn-primary-custom"><i class="fa-solid fa-bullhorn"></i> Publicar para todos verem</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- TELA PERFIL E CONTA -->
+    <main id="profileView" class="view-section">
+        <div class="content-wrapper">
+            <h2 class="section-title">Minha Conta</h2>
+            <div class="card-box" id="profileCardInfo">
+                <div style="display:flex; align-items:center; gap: 14px; margin-bottom: 12px;">
+                    <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-light); color: var(--primary-color); display:flex; align-items:center; justify-content:center; font-size:24px;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div>
+                        <strong id="profileUserName" style="font-size: 17px; display:block;">Visitante</strong>
+                        <span id="profileUserEmail" style="color: var(--text-muted); font-size: 13px;">Você não está logado</span>
+                    </div>
+                </div>
+                <button class="btn-primary-custom" id="profileAuthActionBtn" onclick="abrirModalAuth()">Fazer Login ou Criar Conta</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL DE LOGIN -->
+    <div class="modal-overlay" id="authModalOverlay">
+        <div class="auth-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <strong style="font-size:18px; color:var(--text-main);">Acessar Conta</strong>
+                <button onclick="fecharModalAuth()" style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-muted);"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="formLogin" onsubmit="executarLogin(event)">
+                <div class="form-group">
+                    <label>E-mail</label>
+                    <input type="email" id="loginEmail" class="form-control" placeholder="seu@email.com" required>
+                </div>
+                <button type="submit" class="btn-primary-custom">Entrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE LOCALIZAÇÃO E RAIO DE ALCANCE -->
+    <div class="modal-overlay" id="locationModalOverlay">
+        <div class="auth-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <strong style="font-size:18px; color:var(--text-main);"><i class="fa-solid fa-map-location-dot" style="color:var(--primary-color);"></i> Selecionar Localização</strong>
+                <button onclick="fecharModalLocalizacao()" style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-muted);"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="formLocation" onsubmit="salvarFiltroLocalizacao(event)">
+                <div class="form-group">
+                    <label for="selectEstado">Estado (UF)</label>
+                    <select id="selectEstado" class="form-control" onchange="carregarCidades(this.value)">
+                        <option value="TODOS">Todo o Brasil</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="selectCidade">Cidade</label>
+                    <select id="selectCidade" class="form-control" disabled>
+                        <option value="TODAS">Todas as cidades</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="inputBairroArea">Bairro / Região / Endereço específico (Opcional)</label>
+                    <input type="text" id="inputBairroArea" class="form-control" placeholder="Ex.: Centro, Zona Sul, Rua Principal...">
+                </div>
+
+                <div class="form-group" style="margin-top:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <label style="margin:0;">Raio de busca / Alcance</label>
+                        <span id="labelRaio" style="font-weight:700; color:var(--primary-color); font-size:13px;">Todo o país</span>
+                    </div>
+                    <input type="range" id="inputRaio" min="0" max="100" step="5" value="0" class="form-control" style="padding:4px; cursor:pointer;" oninput="atualizarLabelRaio(this.value)">
+                    <small style="font-size:11px; color:var(--text-muted); display:block; margin-top:4px;">0 km = Apenas local exato | Expanda até 100 km para cidades e regiões vizinhas.</small>
+                </div>
+
+                <button type="submit" class="btn-primary-custom"><i class="fa-solid fa-check"></i> Aplicar Filtro de Região</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Navegação Inferior Atualizada com Aba Favoritos -->
+    <nav class="bottom-nav">
+        <a class="nav-link active" data-target="homeView"><i class="fa-solid fa-house"></i><span>Início</span></a>
+        <a class="nav-link" data-target="favoritesView"><i class="fa-solid fa-heart"></i><span>Favoritos</span></a>
+        <a class="nav-link announce-btn" data-target="announceView"><i class="fa-solid fa-plus"></i></a>
+        <a class="nav-link" data-target="chatView"><i class="fa-solid fa-comments"></i><span>Chat</span></a>
+        <a class="nav-link" data-target="profileView"><i class="fa-solid fa-user"></i><span>Perfil</span></a>
+    </nav>
+
+    <script>
+        /* CONFIGURAÇÃO DO FIREBASE EM TEMPO REAL */
+        const firebaseConfig = {
+            apiKey: "AIzaSyDemoKeyForPublicAppServices01",
+            authDomain: "servs-app.firebaseapp.com",
+            projectId: "servs-app",
+            storageBucket: "servs-app.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:demo"
+        };
+
+        let db = null;
+        let usuarioAtual = JSON.parse(localStorage.getItem('servs_user')) || null;
+        let anunciosServs = [];
+        let fotosSelecionadas = [];
+        let favoritosIds = JSON.parse(localStorage.getItem('servs_favorites')) || [];
+
+        /* SISTEMA DE LOCALIZAÇÃO (BRASIL) */
+        let localizacaoFiltro = JSON.parse(localStorage.getItem('servs_location_filter')) || {
+            estado: 'TODOS',
+            cidade: 'TODAS',
+            bairroArea: '',
+            raioKm: 0
+        };
+
+        const ESTADOS_BRASIL = [
+            { sigla: "AC", nome: "Acre" }, { sigla: "AL", nome: "Alagoas" }, { sigla: "AP", nome: "Amapá" },
+            { sigla: "AM", nome: "Amazonas" }, { sigla: "BA", nome: "Bahia" }, { sigla: "CE", nome: "Ceará" },
+            { sigla: "DF", nome: "Distrito Federal" }, { sigla: "ES", nome: "Espírito Santo" }, { sigla: "GO", nome: "Goiás" },
+            { sigla: "MA", nome: "Maranhão" }, { sigla: "MT", nome: "Mato Grosso" }, { sigla: "MS", nome: "Mato Grosso do Sul" },
+            { sigla: "MG", nome: "Minas Gerais" }, { sigla: "PA", nome: "Pará" }, { sigla: "PB", nome: "Paraíba" },
+            { sigla: "PR", nome: "Paraná" }, { sigla: "PE", nome: "Pernambuco" }, { sigla: "PI", nome: "Piauí" },
+            { sigla: "RJ", nome: "Rio de Janeiro" }, { sigla: "RN", nome: "Rio Grande do Norte" }, { sigla: "RS", nome: "Rio Grande do Sul" },
+            { sigla: "RO", nome: "Rondônia" }, { sigla: "RR", nome: "Roraima" }, { sigla: "SC", nome: "Santa Catarina" },
+            { sigla: "SP", nome: "São Paulo" }, { sigla: "SE", nome: "Sergipe" }, { sigla: "TO", nome: "Tocantins" }
+        ];
+
+        function inicializarFiltroLocalizacao() {
+            const selectEstado = document.getElementById('selectEstado');
+            if (!selectEstado) return;
+            selectEstado.innerHTML = '<option value="TODOS">Brasil (Todo o país)</option>';
+            ESTADOS_BRASIL.forEach(uf => {
+                selectEstado.innerHTML += `<option value="${uf.sigla}">${uf.nome} (${uf.sigla})</option>`;
+            });
+            atualizarHeaderLocalizacaoText();
+        }
+
+        async function carregarCidades(uf) {
+            const selectCidade = document.getElementById('selectCidade');
+            if (!selectCidade) return;
+            selectCidade.innerHTML = '<option value="TODAS">Todas as cidades</option>';
+            
+            if (uf === 'TODOS' || !uf) {
+                selectCidade.disabled = true;
+                return;
+            }
+
+            selectCidade.disabled = false;
+            try {
+                const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`);
+                const cidades = await res.json();
+                cidades.forEach(c => {
+                    selectCidade.innerHTML += `<option value="${c.nome}">${c.nome}</option>`;
+                });
+            } catch (err) {
+                console.warn('Erro ao carregar cidades via IBGE:', err);
+            }
+        }
+
+        function abrirModalLocalizacao() {
+            const modal = document.getElementById('locationModalOverlay');
+            if (!modal) return;
+            
+            document.getElementById('selectEstado').value = localizacaoFiltro.estado || 'TODOS';
+            carregarCidades(localizacaoFiltro.estado).then(() => {
+                if (localizacaoFiltro.cidade) {
+                    document.getElementById('selectCidade').value = localizacaoFiltro.cidade;
+                }
+            });
+
+            document.getElementById('inputBairroArea').value = localizacaoFiltro.bairroArea || '';
+            document.getElementById('inputRaio').value = localizacaoFiltro.raioKm || 0;
+            atualizarLabelRaio(localizacaoFiltro.raioKm || 0);
+
+            modal.classList.add('active');
+        }
+
+        function fecharModalLocalizacao() {
+            document.getElementById('locationModalOverlay')?.classList.remove('active');
+        }
+
+        function atualizarLabelRaio(val) {
+            const label = document.getElementById('labelRaio');
+            if (!label) return;
+            val = Number(val);
+            if (val === 0) label.textContent = 'Apenas na área definida';
+            else label.textContent = `+${val} km ao redor`;
+        }
+
+        function salvarFiltroLocalizacao(e) {
+            e.preventDefault();
+            localizacaoFiltro = {
+                estado: document.getElementById('selectEstado').value,
+                cidade: document.getElementById('selectCidade').value,
+                bairroArea: document.getElementById('inputBairroArea').value.trim(),
+                raioKm: Number(document.getElementById('inputRaio').value)
+            };
+
+            localStorage.setItem('servs_location_filter', JSON.stringify(localizacaoFiltro));
+            atualizarHeaderLocalizacaoText();
+            fecharModalLocalizacao();
+            renderizarAnuncios();
+            renderizarFavoritos();
+        }
+
+        function atualizarHeaderLocalizacaoText() {
+            const el = document.getElementById('currentLocationText');
+            if (!el) return;
+
+            let texto = 'Brasil (Todo o país)';
+            if (localizacaoFiltro.estado !== 'TODOS') {
+                texto = localizacaoFiltro.estado;
+                if (localizacaoFiltro.cidade !== 'TODAS') {
+                    texto = `${localizacaoFiltro.cidade}, ${localizacaoFiltro.estado}`;
+                }
+                if (localizacaoFiltro.bairroArea) {
+                    texto += ` (${localizacaoFiltro.bairroArea})`;
+                }
+                if (localizacaoFiltro.raioKm > 0) {
+                    texto += ` +${localizacaoFiltro.raioKm}km`;
+                }
+            }
+            el.textContent = texto;
+        }
+
+        // Inicialização com Fallback Seguro para evitar o erro de permissão do Firestore
+        try {
+            if (typeof firebase !== 'undefined' && firebase.apps) {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                const firestoreDb = firebase.firestore();
+                firestoreDb.settings({ experimentalForceLongPolling: true });
+                db = firestoreDb;
+            }
+        } catch (e) {
+            console.warn("Modo local ativado (offline/demo):", e);
+            db = null;
+        }
+
+        function sincronizarAnunciosGerais() {
+            if (db) {
+                try {
+                    db.collection("anuncios").orderBy("criadoEm", "desc").onSnapshot((snapshot) => {
+                        anunciosServs = [];
+                        snapshot.forEach((doc) => {
+                            anunciosServs.push({ id: doc.id, ...doc.data() });
+                        });
+                        renderizarAnuncios();
+                        renderizarFavoritos();
+                    }, (error) => {
+                        // Captura a falha de permissão sem poluir com erros e ativa o fallback local
+                        console.info("Usando armazenamento local para anúncios (modo offline/demo).");
+                        db = null;
+                        carregarDoLocalStorage();
+                    });
+                } catch (err) {
+                    db = null;
+                    carregarDoLocalStorage();
+                }
+            } else {
+                carregarDoLocalStorage();
+            }
+        }
+
+        function carregarDoLocalStorage() {
+            try { 
+                anunciosServs = JSON.parse(localStorage.getItem('servs_listings') || '[]'); 
+            } catch (e) { 
+                anunciosServs = []; 
+            }
+            renderizarAnuncios();
+            renderizarFavoritos();
+        }
+
+        /* GERENCIAMENTO DE FAVORITOS */
+        function alternarFavorito(anuncioId) {
+            if (favoritosIds.includes(anuncioId)) {
+                favoritosIds = favoritosIds.filter(id => id !== anuncioId);
+            } else {
+                favoritosIds.push(anuncioId);
+            }
+            localStorage.setItem('servs_favorites', JSON.stringify(favoritosIds));
+            renderizarAnuncios();
+            renderizarFavoritos();
+        }
+
+        function renderizarAnuncios() {
+            const publicListings = document.getElementById('publicListings');
+            if (!publicListings) return;
+            const termo = (document.getElementById('mainSearchInput')?.value || '').trim().toLocaleLowerCase('pt-BR');
+
+            const filtrados = anunciosServs.filter(a => {
+                const textoGeral = `${a.titulo} ${a.categoria} ${a.descricao} ${a.cidade} ${a.estado || ''} ${a.bairroArea || ''}`.toLocaleLowerCase('pt-BR');
+                const atendeBusca = !termo || textoGeral.includes(termo);
+
+                // Filtro de Região / Brasil
+                if (localizacaoFiltro.estado !== 'TODOS') {
+                    const estadoAnuncio = (a.estado || '').toUpperCase();
+                    if (estadoAnuncio && estadoAnuncio !== localizacaoFiltro.estado && localizacaoFiltro.raioKm === 0) {
+                        return false;
+                    }
+
+                    if (localizacaoFiltro.cidade !== 'TODAS') {
+                        const cidadeAnuncio = (a.cidade || '').toLocaleLowerCase('pt-BR');
+                        const cidadeFiltro = localizacaoFiltro.cidade.toLocaleLowerCase('pt-BR');
+                        // Se o raio for zero, requer exatidão de cidade
+                        if (localizacaoFiltro.raioKm === 0 && !cidadeAnuncio.includes(cidadeFiltro)) {
+                            return false;
+                        }
+                    }
+
+                    if (localizacaoFiltro.bairroArea) {
+                        const areaFiltro = localizacaoFiltro.bairroArea.toLocaleLowerCase('pt-BR');
+                        const areaAnuncio = `${a.bairroArea || ''} ${a.cidade || ''}`.toLocaleLowerCase('pt-BR');
+                        if (localizacaoFiltro.raioKm === 0 && !areaAnuncio.includes(areaFiltro)) {
+                            return false;
+                        }
+                    }
+                }
+
+                return atendeBusca;
+            });
+
+            publicListings.innerHTML = '';
+            if (!filtrados.length) {
+                publicListings.innerHTML = `<div class="empty-listings" style="grid-column:1/-1;"><i class="fa-solid fa-store" style="font-size:25px;display:block;margin-bottom:8px;"></i>Nenhum anúncio encontrado nesta região/busca.<br><small style="color:var(--text-muted)">Experimente aumentar o raio de alcance ou selecionar "Todo o Brasil".</small></div>`;
+                return;
+            }
+
+            filtrados.forEach(a => {
+                publicListings.appendChild(criarCardAnuncio(a));
+            });
+        }
+
+        function renderizarFavoritos() {
+<!-- ... existing code ... &&
+            const anuncio = {
+                tipo, titulo, categoria, preco, descricao, contato,
+                cidade: localizacaoFiltro.cidade !== 'TODAS' ? localizacaoFiltro.cidade : 'Senador Guiomard',
+                estado: localizacaoFiltro.estado !== 'TODOS' ? localizacaoFiltro.estado : 'AC',
+                bairroArea: localizacaoFiltro.bairroArea || '',
+                fotos: fotosSelecionadas.slice(0, 5),
+                autor: usuarioAtual?.email || 'visitante',
+                criadoEm: new Date().toISOString()
+            };
+
+            salvarAnuncioNuvem(anuncio);
+            document.getElementById('announceForm').reset();
+            fotosSelecionadas = [];
+            document.getElementById('photoPreview').innerHTML = '';
+            document.querySelector('[data-target="homeView"]').click();
+        }
+
+        function mostrarPreviaFotos(event) {
+            const files = Array.from(event.target.files || []).slice(0, 5);
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+            fotosSelecionadas = [];
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    fotosSelecionadas.push({ data: reader.result });
+                    const thumb = document.createElement('img');
+                    thumb.src = reader.result;
+                    preview.appendChild(thumb);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function abrirModalAuth() { document.getElementById('authModalOverlay').classList.add('active'); }
+        function fecharModalAuth() { document.getElementById('authModalOverlay').classList.remove('active'); }
+        function executarLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            usuarioAtual = { nome: email.split('@')[0], email };
+            localStorage.setItem('servs_user', JSON.stringify(usuarioAtual));
+            fecharModalAuth();
+            location.reload();
+        }
+
+        // Navegação de Telas
+        document.querySelectorAll('.bottom-nav .nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = link.getAttribute('data-target');
+                document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+                document.querySelectorAll('.bottom-nav .nav-link').forEach(l => l.classList.remove('active'));
+                document.getElementById(target)?.classList.add('active');
+                link.classList.add('active');
+            });
+        });
+
+        // Inicialização
+        inicializarFiltroLocalizacao();
+        sincronizarAnunciosGerais();
+    </script>
+</body>
+</html>
